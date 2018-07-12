@@ -1,0 +1,757 @@
+---
+title: "Third Week: Exploratory Data Analysis"
+subtitle: "LaLiga Analysis"
+author: "Arefe Abghari"
+date: "`r Sys.time()`"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+<div align="center">
+<img  src="images/laliga-lo.jpg"  align = 'center'>
+</div>
+
+<h1 dir="RTL"> 
+تمرین سری سوم: از لالیگا تا لیگ برتر
+</h1>
+
+> <p dir="RTL"> 
+با استفاده از داده های لیگ دسته اول اسپانیا به سوالات زیر پاسخ دهید.
+از هر دو ابزار
+ggplot2
+و
+highcharter
+برای این کار تصویرسازی استفاده نمایید.
+</p>
+
+***
+
+<p dir="RTL">
+۱. تعداد قهرمانی های تیم ها در تاریخ لالیگا  را استخراج کرده و نمودار ستونی آنها را رسم کنید.
+</p>
+
+```{r, warning=FALSE}
+
+library(engsoccerdata)
+library(ggplot2)
+library(highcharter)
+library(devtools)
+library(dplyr)
+data(package="engsoccerdata") 
+Laliga = as.tbl(spain)
+
+
+
+rbind(
+  Laliga %>%
+    select(Season, team = home, opp = visitor, GF = hgoal, GA = vgoal),
+  Laliga %>%
+    select(Season, team = visitor, opp = home, GF = vgoal, GA = hgoal)
+) %>% mutate(GD = GF-GA) ->stats
+stats %>%
+  group_by(team,Season) %>% 
+  summarize(GP = n(),
+            goalsF = sum(GF),
+            goalsA = sum(GA),
+            goaldif = sum(GD),
+            W = sum(GD>0),
+            D = sum(GD==0),
+            L = sum(GD<0)
+  ) %>% 
+  mutate(score = W*3 + D) %>%
+  arrange(Season,desc(score)) %>% 
+  group_by(Season) %>% 
+  mutate(rank = rank(-score) %>% as.integer()) %>%
+  group_by(Season) %>%
+  slice (which.max(score))-> atable
+
+
+atable %>%
+  group_by(team) %>%
+  summarise(nw=n())->atable
+atable %>%
+  hchart(type = "column",hcaes(x = team,y = nw), name="Soccer")
+
+p=ggplot()
+p+geom_bar(data=atable , aes(x=team , y= nw),stat="identity")
+
+
+```
+
+***
+
+<p dir="RTL">
+۲. کسل کننده ترین لیگ و تیم را بیابید.
+نمودار ده تیم و ده فصل کسل کننده را رسم کنید.
+</p>
+<h1 dir="RTL"> 
+پاسخ
+</h1>
+
+<p dir="RTL">
+کسل کننده ترین تیم و لیگ تیم و لیگ هایی بودند که بیشترین تعداد  نتیجه  ی مساوی در آن ها وجود داشت. و سپس برای تیم ها تیمی که کمترین گل زده به ازای هر بازی را رد و بدل کرده بود . دو ستون تعداد مساوی ها و تعداد میانگین گل های رد و بدل شده را به داده هااضافه کردم و سپس بر حسب این دو سورت نمودم 
+</p>
+
+``` {r}
+library(engsoccerdata)
+library(highcharter)
+library(ggplot2)
+library(devtools)
+library(dplyr)
+data(package="engsoccerdata") 
+Laliga = as.tbl(spain)
+
+
+
+rbind(
+  Laliga %>%
+    select(Season,Date, team = home, opp = visitor, GF = hgoal, GA = vgoal),
+  Laliga %>%
+    select(Season,Date, team = visitor, opp = home, GF = vgoal, GA = hgoal)
+) %>% mutate(GS=GF+GA,GD = GF-GA, iswon=as.integer(GD>0) , islost=as.integer(GD<0) , isdrew=as.integer(GD==0)) %>%
+  # group_by(Season) %>%
+  arrange(Season, team, Date)->stats
+
+
+stats %>%
+  group_by(  Season,team ) %>%
+  summarise(goalperplay=sum(GS)/n() , totd=sum(isdrew) ) %>%
+  arrange(desc(totd),goalperplay) %>%
+  .[1:10,] ->keselteam 
+
+
+keselteam%>%
+  hchart(type = "column",hcaes(x = team,y = totd), name="Soccer")
+
+p=ggplot ()
+p+geom_bar(data=keselteam , aes(x=team , y= totd) , stat="identity")
+
+stats %>%
+  group_by(Season) %>%
+  summarise(goalperplay=sum(GS)/n() , totd=sum(isdrew) ) %>%
+  arrange(desc(totd),goalperplay) %>%
+  slice(1:10)->keselleag
+
+
+
+
+keselteam%>%
+  hchart(type = "column",hcaes(x = Season,y = totd), name="Soccer")
+
+p=ggplot()
+p+geom_bar(data=keselleag , aes(x=Season , y= totd) , stat="identity")
+
+```
+
+***
+
+<p dir="RTL">
+۳. در چند درصد موارد قهرمان نیم فصل در پایان فصل قهرمان شده است؟
+</p>
+
+
+```{r}
+
+library(engsoccerdata)
+library(dplyr)
+library(ggplot2)
+library(highcharter)
+data(package="engsoccerdata") 
+Laliga = as.tbl(spain)
+
+
+rbind(
+  Laliga %>%
+    select(Season,Date, team = home, opp = visitor, GF = hgoal, GA = vgoal),
+  Laliga %>%
+    select(Season,Date, team = visitor, opp = home, GF = vgoal, GA = hgoal)
+) %>% mutate(GD = GF-GA , score= 3*as.integer(GD>0)+1*as.integer(GD==0)+0*as.integer(GD<0))->stats
+
+stats %>%
+  group_by(Season, team ) %>%
+  arrange(Date) %>%
+  mutate(totscore=cumsum(score)) %>%
+  group_by(Season, team ) %>%
+  mutate (numnotplyd=n()-cumsum(as.integer(team==team))) %>%
+  arrange(Season , (numnotplyd),desc(totscore)) %>%
+  group_by(Season, numnotplyd) %>%
+  mutate(rank=rank(-totscore)) ->newstat
+
+
+newstat %>%
+  group_by(Season , numnotplyd) %>%
+  slice (1:1) %>%
+  select (Season, team , totscore , numnotplyd , rank) ->df
+
+
+
+cbind(
+  
+  df%>%
+    group_by(Season) %>%
+    slice(1) , 
+  df %>%
+    group_by(Season) %>%
+    slice (1+(max(numnotplyd)+1)/2)
+  
+) %>%
+  select(Season, team , team1  ) %>%
+  arrange(Season) %>% 
+  mutate(issame=as.integer(team==team1))->df1
+
+
+
+percent=sum(df1$issame)*100/length(df1$issame)
+
+print(percent)
+
+
+  
+```
+
+***
+
+<p dir="RTL">
+۴. در بین سال های ۲۰۰۱ تا ۲۰۱۰ گربه سیاه تیم های بزرگ چه تیم هایی بوده است؟
+</p>
+<h1 dir="RTL"> 
+پاسخ
+</h1>
+
+<p dir="RTL">
+دو تیم رئال مادرید و بارسلونا را به عنوان تیم های بزرگ در نر گرفته ام . سپس در بین ای نسال ها ۱۰ تیم اخر هر جدول را انتخاب کرده ام به عنوان تیم های ضعیف. سپس تعداد مسابقاتی که این تیم های ضعیف از تیم های قوی برنده شده اند را به دست آورده ام که در نمودار مشخص است 
+</p>
+
+```{r}
+library(engsoccerdata)
+library(dplyr)
+library(ggplot2)
+library(highcharter)
+data(package="engsoccerdata") 
+Laliga = as.tbl(spain)
+Laliga %>% 
+  filter (Season %in% 2001:2010) ->Laliga1
+
+rbind(
+  Laliga1 %>%
+    filter (home=="FC Barcelona" | home=="Real Madrid") %>%
+    select(Season,Date, team = home, opp = visitor, GF = hgoal, GA = vgoal),
+  Laliga1 %>%
+    filter (home=="FC Barcelona" | home=="Real Madrid") %>%
+    select(Season,Date, team = visitor, opp = home, GF = vgoal, GA = hgoal)
+) %>% mutate(GD = GF-GA , score= 3*as.integer(GD>0)+1*as.integer(GD==0)+0*as.integer(GD<0))->stats
+
+
+ rbind(
+   Laliga %>%
+     select(Season, team = home, opp = visitor, GF = hgoal, GA = vgoal),
+    Laliga %>%
+     select(Season, team = visitor, opp = home, GF = vgoal, GA = hgoal)
+ ) %>%  mutate(GD = GF-GA) %>% 
+   group_by(Season, team) %>% 
+   summarize(GP = n(),
+             goalsF = sum(GF),
+             goalsA = sum(GA),
+             goaldif = sum(GD),
+             W = sum(GD>0),
+             D = sum(GD==0),
+             L = sum(GD<0)
+   ) %>% 
+   mutate(score = W*3 + D) %>%
+   mutate(rank = rank(-score) %>% as.integer()) %>%
+   filter (Season %in% 2001:2010) %>%
+   arrange(Season,rank) -> ltable
+ltable %>%
+  group_by(Season) %>%
+  arrange(desc(rank)) %>%
+  slice(1:10) %>%
+  select(team , Season)->atable
+
+df=data.frame(team=atable$team)
+df %>% distinct(team, .keep_all = TRUE)->df
+
+  
+stats %>%
+  filter(opp %in% df$team) %>%
+  filter (score==0) %>%
+  group_by(team, opp) %>%
+ summarise(gamewon=n())->btable
+
+
+btable %>%
+  filter(team=="FC Barcelona") ->batable
+batable%>%
+  hchart(type = "column",hcaes(x = opp, y = gamewon))
+
+p=ggplot(data=batable)
+p+geom_bar(aes(x = opp, y = gamewon), stat="identity")
+
+
+btable %>%
+  filter(team=="Real Madrid") ->bctable
+bctable%>%
+  hchart(type = "column",hcaes(x = opp, y = gamewon))
+
+p=ggplot(data=bctable)
+p+geom_bar(aes(x = opp, y = gamewon), stat="identity")
+
+```
+
+***
+
+<p dir="RTL">
+۵. در تاریخ لالیگا کدام تیم رکورددار زودترین قهرمانی است؟
+همچنین کدام تیم مقتدرانه ترین قهرمانی را داشته است؟
+</p>
+
+
+```{r}
+
+library(engsoccerdata)
+library(dplyr)
+library(ggplot2)
+library(highcharter)
+data(package="engsoccerdata") 
+Laliga = as.tbl(spain)
+
+
+rbind(
+  Laliga %>%
+    select(Season,Date, team = home, opp = visitor, GF = hgoal, GA = vgoal),
+  Laliga %>%
+    select(Season,Date, team = visitor, opp = home, GF = vgoal, GA = hgoal)
+) %>% mutate(GD = GF-GA , score= 3*as.integer(GD>0)+1*as.integer(GD==0)+0*as.integer(GD<0))->stats
+
+stats %>%
+  group_by(Season, team ) %>%
+  arrange(Date) %>%
+  mutate(totscore=cumsum(score)) %>%
+  group_by(Season, team ) %>%
+  mutate (numnotplyd=n()-cumsum(as.integer(team==team))) %>%
+  arrange(Season , (numnotplyd),desc(totscore)) %>%
+  group_by(Season, numnotplyd) %>%
+  mutate(rank=rank(-totscore)) ->newstat
+
+newstat %>%
+  group_by(Season, numnotplyd) %>%
+  arrange(rank) %>%
+  slice(1:2) %>%
+  select(Season, team , numnotplyd , totscore) ->df
+
+df %>%
+  group_by(Season, numnotplyd) %>%
+  mutate(a=max(totscore), b=min(totscore)) %>%
+   mutate(scoredif=as.integer((a-b)>3*numnotplyd)) %>%
+  slice(1:1) %>%
+   select(Season , numnotplyd , scoredif , team ) %>%
+   arrange(desc(scoredif) , desc(numnotplyd)) %>%
+  select(Season , team , numnotplyd) %>% .[1:5,]->df2
+print(df2)
+
+
+```
+
+<p dir="RTL">
+مقتدارنه ترین قهرمانی را قهرمانی با بیشترین تعداد برد درنظر گرفته ام. 
+</p>
+```{r}
+library(engsoccerdata)
+library(dplyr)
+library(ggplot2)
+library(highcharter)
+data(package="engsoccerdata") 
+Laliga = as.tbl(spain)
+
+
+
+rbind(
+  Laliga %>%
+    select(Season,Date, team = home, opp = visitor, GF = hgoal, GA = vgoal),
+  Laliga %>%
+    select(Season,Date, team = visitor, opp = home, GF = vgoal, GA = hgoal)
+) %>% mutate(GD = GF-GA, iswon=as.integer(GD>0) , islost=as.integer(GD<0) , isdrew=as.integer(GD==0)) %>%
+  # group_by(Season) %>%
+  arrange(Season, team, Date)->stats
+
+rbind(
+  Laliga %>%
+    select(Season, team = home, opp = visitor, GF = hgoal, GA = vgoal),
+  Laliga %>%
+    select(Season, team = visitor, opp = home, GF = vgoal, GA = hgoal)
+) %>% mutate(GD = GF-GA  ) %>% 
+  group_by(Season, team) %>% 
+  summarize(GP = n(),
+            goalsF = sum(GF),
+            goalsA = sum(GA),
+            goaldif = sum(GD),
+            W = sum(GD>0),
+            D = sum(GD==0),
+            L = sum(GD<0)
+  ) %>% 
+  mutate(score = W*3 + D) %>%
+  mutate(rank = rank(-score) %>% as.integer()) %>%
+  arrange(rank) %>%
+  group_by(Season) %>%
+  slice(1:1) %>%
+  arrange(-W) %>%
+  .[1:10,]-> ltable
+
+
+print(ltable)
+
+```
+
+<p dir="RTL">
+سوال۶
+</p>
+```{r}
+library(engsoccerdata)
+library(highcharter)
+library(devtools)
+library(dplyr)
+data(package="engsoccerdata") 
+Laliga = as.tbl(spain)
+
+
+
+rbind(
+  Laliga %>%
+    select(Season,Date, team = home, opp = visitor, GF = hgoal, GA = vgoal),
+  Laliga %>%
+    select(Season,Date, team = visitor, opp = home, GF = vgoal, GA = hgoal)
+) %>% mutate(GD = GF-GA, iswon=as.integer(GD>0) , islost=as.integer(GD<0) , isdrew=as.integer(GD==0)) %>%
+ # group_by(Season) %>%
+  arrange(Season, team, Date)->stats
+
+
+
+maxcumone <- function(x) {
+  l <- x == 1
+  max(cumsum(l) - cummax(cumsum(l) * !l))
+}
+
+
+stats %>%
+  group_by(Season,team) %>%
+  summarise(maxwon=maxcumone(iswon) , maxlost=maxcumone(islost) , maxdrew=maxcumone(isdrew))->df
+
+print( df[which.max(df$maxwon),] )
+
+print( df[which.max(df$maxlost),] )
+print(df[which.max(df$maxdrew),])
+
+
+```
+
+<p dir="RTL">
+سوال۷
+</p>
+
+```{r}
+library(engsoccerdata)
+library(dplyr)
+library(ggplot2)
+library(highcharter)
+library(gridExtra)
+data(package="engsoccerdata") 
+Laliga = as.tbl(spain)
+
+
+
+
+rbind(
+  Laliga %>%
+    select(Season,Date, team = home, opp = visitor, GF = hgoal, GA = vgoal),
+  Laliga %>%
+    select(Season,Date, team = visitor, opp = home, GF = vgoal, GA = hgoal)
+) %>% mutate(GD = GF-GA , score= 3*as.integer(GD>0)+1*as.integer(GD==0)+0*as.integer(GD<0))->stats
+
+stats %>%
+  group_by(Season, team ) %>%
+  arrange(Date) %>%
+  mutate(totscore=cumsum(score)) %>%
+  group_by(Season, team ) %>%
+  mutate (numnotplyd=n()-cumsum(as.integer(team==team))) %>%
+  arrange(Season , (numnotplyd),desc(totscore)) %>%
+  group_by(Season, numnotplyd) %>%
+  mutate(rank=rank(-totscore)) ->newstat
+
+
+
+
+newstat %>%
+  group_by(Season, numnotplyd) %>%
+  arrange(desc(rank)) %>%
+  slice(3:4) %>%
+  select(Season, team , numnotplyd , totscore) ->df
+
+
+
+df %>%
+  group_by(Season, numnotplyd) %>%
+  mutate(a=max(totscore), b=min(totscore)) %>%
+  mutate(scoredif=as.integer((a-b)>3*numnotplyd)) %>%
+  slice(1:1) %>%
+  select(Season , numnotplyd , scoredif , team ) %>%
+  arrange(desc(scoredif) , desc(numnotplyd)) %>%
+  select(Season , team , numnotplyd) ->df2
+print(df2[1:3,])
+
+```
+
+
+<div align="center">
+<img  src="images/standings.png"  align = 'center'>
+</div>
+
+<p dir="RTL">
+مانند شکل بالا تصویری از روند تغییر رتبه تیم ها در طول فصل ۱۹۹۸ رسم نمایید.
+</p>
+
+
+
+```{r , width=10}
+library(engsoccerdata)
+library(dplyr)
+library(ggplot2)
+library(highcharter)
+library(gridExtra)
+data(package="engsoccerdata") 
+Laliga = as.tbl(spain)
+
+
+rbind(
+  Laliga %>%
+    select(Season,Date, team = home, opp = visitor, GF = hgoal, GA = vgoal),
+  Laliga %>%
+    select(Season,Date, team = visitor, opp = home, GF = vgoal, GA = hgoal)
+) %>% mutate(GD = GF-GA , score= 3*as.integer(GD>0)+1*as.integer(GD==0)+0*as.integer(GD<0))->stats
+
+stats %>%
+  group_by(Season, team ) %>%
+  arrange(Date) %>%
+  mutate(totscore=cumsum(score)) %>%
+  group_by(Season, team ) %>%
+  mutate (numnotplyd=n()-cumsum(as.integer(team==team))) %>%
+  arrange(Season , desc(numnotplyd),desc(totscore)) %>%
+  group_by(Season, numnotplyd) %>%
+  filter(Season==1998) %>%
+  mutate(tmp=1, rank=cumsum(tmp)) %>%
+  select(Season, Date , team , totscore, numnotplyd , rank ) ->newstat
+
+newstat$Date = as.Date(newstat$Date, format='%Y-%m-%d')
+
+
+p=ggplot(data= newstat , aes(x=Date , y=rank))
+p+geom_line(aes(group=team , color=team )) + scale_y_reverse()+
+
+  scale_x_date(date_breaks = "1 week", date_labels =  "%b %d")+
+  theme(axis.text.x=element_text(angle=60, hjust=1)) +
+  xlab(" ") + ylab("Position")
+
+
+
+
+```
+***
+
+<div align="center">
+<img  src="images/bd_10.gif"  align = 'center'>
+</div>
+
+<p dir="RTL">
+۹. جدولی مشابه بالا برای فصل ۲۰۱۲ از  کل نتایج طراحی کنید.
+</p>
+
+
+```{r}
+library(engsoccerdata)
+library(dplyr)
+library(ggplot2)
+library(highcharter)
+library(gridExtra)
+data(package="engsoccerdata") 
+Laliga = as.tbl(spain)
+
+game1 = Laliga %>% filter( Season == "2012")
+p=ggplot(game1, aes(home, visitor) )+ 
+  geom_tile( color="white", size=1.5, stat="identity", height=1, width=1)  +
+  geom_text(data=game1, aes(home, visitor, label = FT), color="grey", size=rel(2)) 
+
+  p+ggtitle("Laliga 2012") 
+  
+
+
+```
+
+***
+
+<p dir="RTL">
+۱۰. سه آماره به همراه  نمودار فردوسی پسند استخراج کنید.
+</p>
+<h1 dir="RTL"> 
+پاسخ
+</h1>
+<p dir="RTL">
+در این قسمت سعی کرده ام در دو نمودار مقایسه کنم که بازی هایی که تیم بارسلونا ازرئال مادرید برده را با چه تعداد گل و همچنین بازی هایی که رئال از بارسلونا برنده شده را باچه تعداد گل برده است.
+</p>
+
+``` {r}
+
+library(engsoccerdata)
+library(dplyr)
+library(ggplot2)
+library(highcharter)
+data(package="engsoccerdata") 
+Laliga = as.tbl(spain)
+
+
+
+
+  Laliga %>%
+    filter ((home=="FC Barcelona"  & visitor=="Real Madrid") | (home=="Real Madrid"  & visitor=="FC Barcelona")) %>%
+    select(Season,Date, team = home, opp = visitor, GF = hgoal, GA = vgoal) %>%
+    mutate (GD=GF-GA)->stats
+
+
+  stats %>%
+    filter(team== "FC Barcelona" & GD>0) %>%
+    group_by(GD) %>%
+    summarise(ngoaldif=n())%>%
+    hchart(type = "column",hcaes(x = GD, y = ngoaldif),name = "score")
+  
+  
+  
+  
+  stats %>%
+    filter(team== "Real Madrid" & GD>0) %>%
+    group_by(GD) %>%
+    summarise(ngoaldif=n())%>%
+    hchart(type = "column",hcaes(x = GD, y = ngoaldif),name = "score")
+    
+    
+
+```
+
+<p dir="RTL">
+تعداد کل گل های زده شده در لیگ  ۲۰۱۶ را برای هر تیم به دست آورده ام . 
+</p>
+
+```{r}
+library(engsoccerdata)
+library(dplyr)
+library(ggplot2)
+library(highcharter)
+data(package="engsoccerdata") 
+Laliga = as.tbl(spain)
+
+
+Laliga %>%
+  filter(Season==2016) ->Laliga1
+
+rbind(
+  Laliga1%>%
+    select(Season, team = home, opp = visitor, GF = hgoal),
+  Laliga1 %>%
+    select(Season, team = visitor, opp = home, GF = vgoal)
+)  ->stat
+
+
+stat %>%
+  group_by(team ) %>%
+  summarise (n=sum(GF)) %>%
+  arrange(n)->newstat
+
+hchart(newstat, type = "pie",hcaes(x = team, y = n), name = "goal")
+
+
+```
+
+
+<p dir="RTL">
+در اینجا میخواستم بررسی کنم که برای تیم قهرمان اگر بارسا باشد، برنده شدن در مسابقات با رئال رابطه ای با قهرمانی داشته است یا نه . تعداددفعاتی که بارسلونا هردوبازی رفت و برگشت با رئال را برده و یا بازی در خانه رئا را برده و هیچکدام یا فقط بازی در خانه خودش را برده تفکیک کرده ام در فصل هایی که بارسا قهرمان بوده و نمودار آن را رسم نموده ام. 
+</p>
+
+
+```{r}
+
+library(engsoccerdata)
+library(dplyr)
+library(ggplot2)
+library(highcharter)
+data(package="engsoccerdata") 
+Laliga = as.tbl(spain)
+
+
+
+rbind(
+  Laliga %>%
+    select(Season, team = home, opp = visitor, GF = hgoal, GA = vgoal),
+  Laliga %>%
+    select(Season, team = visitor, opp = home, GF = vgoal, GA = hgoal)
+) %>% mutate(GD = GF-GA) %>% 
+  group_by(Season, team) %>% 
+  summarize(GP = n(),
+            goalsF = sum(GF),
+            goalsA = sum(GA),
+            goaldif = sum(GD),
+            W = sum(GD>0),
+            D = sum(GD==0),
+            L = sum(GD<0)
+  ) %>% 
+  mutate(score = W*3 + D) %>%
+  mutate(rank = rank(-score) %>% as.integer()) %>%
+  arrange(rank) %>%
+  filter (rank==1 & team =="FC Barcelona")-> ltable
+
+Laliga %>%
+  filter ((home=="FC Barcelona"  & visitor=="Real Madrid")) %>%
+  filter (Season %in% ltable$Season) %>%
+  select(Season,Date, team = home, opp = visitor, GF = hgoal, GA = vgoal) %>%
+  mutate (GD=GF-GA) %>%
+  mutate(iswonhome=as.integer (GD>0))->barcahome
+
+Laliga %>%
+  filter ((home=="Real Madrid"  & visitor=="FC Barcelona")) %>%
+  filter (Season %in% ltable$Season) %>%
+  select(Season,Date, team = visitor, opp = home, GF = hgoal, GA = vgoal) %>%
+  mutate (GD=GF-GA) %>%
+  mutate(iswonvis=as.integer (GD>0))->barcavisitor
+
+
+df= data.frame (Season=barcahome$Season )
+c=as.integer(length(as.matrix(df[,1])))
+
+for ( i in 1:c){
+
+
+ if (barcahome[i,8]==1 &barcavisitor[i,8]==0) {
+   df[i,2]="both"
+ }
+
+  else if (barcahome[i,8]==0 & barcavisitor[i,8]==1) {
+    
+    df[i,2]="visitor"
+    
+  }
+  
+  else {
+    
+    df[i,2]="none or won at home"
+    
+  }
+  
+  
+}
+df %>%
+  group_by(V2) %>%
+  summarise(per=n()) %>%
+  hchart(type = "pie",hcaes(x =V2 , y = per), name = "Barca-Real") %>% 
+  hc_add_theme(hc_theme_538())
+
+
+
+
+```
